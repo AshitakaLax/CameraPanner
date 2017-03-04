@@ -7,22 +7,35 @@
 #include <AccelStepper.h>
 #include <Bounce2.h>
 #include <LiquidCrystal.h>
+#include <NikonRemote.h>
 
-#define STEPPER_DIRECTION_PIN  0
-#define STEPPER_STEP_PIN  1
 
+#define STEPPER_ENABLE_PIN  0
+#define STEPPER_M0_PIN  1
+#define STEPPER_M1_PIN  2
+#define STEPPER_M2_PIN  3
+#define STEPPER_RESET_PIN  4
+#define STEPPER_SLEEP_PIN  5
+#define STEPPER_STEP_PIN  6
+#define STEPPER_DIRECTION_PIN  7
+
+//User Input Switches
 #define BUTTON_INPUT_PIN  25
 
+// MOTOR Limit Switches
 #define SWITCH_LIMIT_ONE_PIN  18
 #define SWITCH_LIMIT_TWO_PIN  19
 
+//IR Remote Pins
+#define IR_LED_PIN 17
 
-#define LC_RS_PIN  17
-#define LC_EN_PIN  16
-#define LC_D7_PIN  15
-#define LC_D6_PIN  14
-#define LC_D5_PIN  13
-#define LC_D4_PIN  12
+//LCD Pins
+#define LC_RS_PIN  23
+#define LC_EN_PIN  21
+#define LC_D7_PIN  41
+#define LC_D6_PIN  40
+#define LC_D5_PIN  39
+#define LC_D4_PIN  28
 
 // Define Globals
 AccelStepper XAxisStepper(1, STEPPER_STEP_PIN, STEPPER_DIRECTION_PIN);
@@ -31,8 +44,22 @@ Bounce limitSwitchOne = Bounce();
 Bounce limitSwitchTwo = Bounce();
 LiquidCrystal lcd(LC_RS_PIN, LC_EN_PIN, LC_D7_PIN, LC_D6_PIN, LC_D5_PIN, LC_D4_PIN);
 
+NikonRemote camera(IR_LED_PIN);
+
 void setup() {
   // Setup the Stepper Motor
+  pinMode(STEPPER_ENABLE_PIN, OUTPUT);
+  digitalWrite(STEPPER_ENABLE_PIN, LOW);
+  pinMode(STEPPER_M0_PIN, OUTPUT);
+  digitalWrite(STEPPER_M0_PIN, LOW);
+  pinMode(STEPPER_M1_PIN, OUTPUT);
+  digitalWrite(STEPPER_M1_PIN, LOW);
+  pinMode(STEPPER_M2_PIN, OUTPUT);
+  digitalWrite(STEPPER_M2_PIN, LOW);
+  pinMode(STEPPER_RESET_PIN, OUTPUT);
+  digitalWrite(STEPPER_RESET_PIN, HIGH);
+  pinMode(STEPPER_SLEEP_PIN, OUTPUT);
+  digitalWrite(STEPPER_SLEEP_PIN, HIGH);
   XAxisStepper.setMaxSpeed(10);
   XAxisStepper.setSpeed(1);
   
@@ -57,6 +84,8 @@ void loop() {
   handleMotorUpdate();
   handleButtonUpdate();
   handleLimitUpdate();
+  delay(5000);
+  camera.Snap();
 }
 
 /**
