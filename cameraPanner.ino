@@ -1,12 +1,14 @@
-    
-/**
+ /**
  * Author Levi Balling
  * This code is free for anyone to use.
  * This project is using the MIT license
  */
+#include <MenuEntry.h>
+#include <MenuIntHelper.h>
+#include <MenuLCD.h>
+#include <MenuManager.h>
 #include <AccelStepper.h>
 #include <Bounce2.h>
-#include <LiquidCrystal.h>
 #include <NikonRemote.h>// http://www.cibomahto.com/2008/10/october-thing-a-day-day-7-nikon-camera-intervalometer-part-1/
 
 const int led = LED_BUILTIN;
@@ -20,16 +22,9 @@ const int led = LED_BUILTIN;
 #define STEPPER_STEP_PIN  6
 #define STEPPER_DIRECTION_PIN  7
 
-//User Input Switches
-#define BUTTON_INPUT_PIN  25
-
-// MOTOR Limit Switches
-#define SWITCH_LIMIT_ONE_PIN  18
-#define SWITCH_LIMIT_TWO_PIN  19
-
 //IR Remote Pins
 //#define ENABLE_IR_LED 1
-#define IR_LED_PIN 17
+#define IR_LED_PIN 27
 
 //LCD Pins
 #define ENABLE_LCD 1
@@ -44,12 +39,23 @@ const int led = LED_BUILTIN;
 #ifdef ENABLE_STEPPER
 AccelStepper XAxisStepper(1, STEPPER_STEP_PIN, STEPPER_DIRECTION_PIN);
 #endif
-Bounce debouncer = Bounce();
-Bounce limitSwitchOne = Bounce();
-Bounce limitSwitchTwo = Bounce();
+
+// Example uses 4 buttons
+// User Input Switches
+#define BUTTON_UP_PIN  45
+#define BUTTON_DOWN_PIN  44
+#define BUTTON_BACK_PIN  43
+#define BUTTON_SELECT_PIN  42
+Bounce debounceUp = Bounce();
+Bounce debounceDown = Bounce();
+Bounce debounceBack = Bounce();
+Bounce debounceSelect = Bounce();
 
 #ifdef ENABLE_LCD
-LiquidCrystal lcd(LC_RS_PIN, LC_EN_PIN, LC_D4_PIN, LC_D5_PIN, LC_D6_PIN, LC_D7_PIN);
+MenuLCD lcdController(LC_RS_PIN, LC_EN_PIN, LC_D4_PIN, LC_D5_PIN, LC_D6_PIN, LC_D7_PIN, 16, 2);
+MenuManager menuController( &lcdController);  
+
+//LiquidCrystal lcd(LC_RS_PIN, LC_EN_PIN, LC_D4_PIN, LC_D5_PIN, LC_D6_PIN, LC_D7_PIN);
 #endif
 
 #ifdef ENABLE_IR_LED
@@ -76,34 +82,66 @@ void setup() {
   XAxisStepper.setMaxSpeed(10);
   XAxisStepper.setSpeed(1);
 #endif
-  // Setup the Inputs and debouncers
-  pinMode(BUTTON_INPUT_PIN, INPUT_PULLUP);
-  debouncer.attach(BUTTON_INPUT_PIN);
-  debouncer.interval(5);
 
-  pinMode(SWITCH_LIMIT_ONE_PIN, INPUT_PULLUP);
-  limitSwitchOne.attach(SWITCH_LIMIT_ONE_PIN);
-  limitSwitchOne.interval(5);
+  lcdController.MenuLCDSetup();
+  
+  // Define the Menu objects 
+  MenuEntry * rootMenuEntry = new MenuEntry("M1", NULL, NULL);
+  MenuEntry * M1S1MenuEntry = new MenuEntry("M1-S1", NULL, M1S1Callback);
+  MenuEntry * M1S2MenuEntry = new MenuEntry("M1-S2", NULL, M1S2Callback);
+  MenuEntry * M2MenuEntry = new MenuEntry("M2", NULL, M2Callback);
+  
+  //Add the root node, then it's children
+  menuController.addMenuRoot(rootMenuEntry);
+  menuController.addChild(M1S1MenuEntry);    
+  menuController.addChild(M1S2MenuEntry);  
+  menuController.addSibling(M2MenuEntry);
+  menuController.SelectRoot();
+  menuController.DrawMenu();   
 
-  pinMode(SWITCH_LIMIT_TWO_PIN, INPUT_PULLUP);
-  limitSwitchTwo.attach(SWITCH_LIMIT_TWO_PIN);
-  limitSwitchTwo.interval(5);
-#ifdef ENABLE_LCD
-  lcd.begin(16, 2);
-  lcd.print("Starting DSLR");
-#endif
+  // Setup Buttons for the Menu System
+  setupButtons();
 }
+
+/**
+ * Sets up 4 debounced buttons to handle the Menu Options
+ */
+void setupButtons()
+{
+  // Setup the Inputs and debouncers
+  pinMode(BUTTON_UP_PIN, INPUT_PULLUP);
+  debounceUp.attach(BUTTON_UP_PIN);
+  debounceUp.interval(5);
+  
+  // Setup Down Button
+  pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP);
+  debounceDown.attach(BUTTON_DOWN_PIN);
+  debounceDown.interval(5);
+
+  // Setup Back Button
+  pinMode(BUTTON_BACK_PIN, INPUT_PULLUP);
+  debounceBack.attach(BUTTON_BACK_PIN);
+  debounceBack.interval(5);
+
+  // Setup Select Button
+  pinMode(BUTTON_SELECT_PIN, INPUT_PULLUP);
+  debounceSelect.attach(BUTTON_SELECT_PIN);
+  debounceSelect.interval(5);
+}
+
+
+
 
 void loop() 
 {
-  digitalWrite(led, HIGH);
-  delay(100);
-  digitalWrite(led, LOW);
-  delay(100);
-  lcd.setCursor(0, 0);
-  lcd.print("Starting DSLR");
-  lcd.setCursor(0, 1);
-  lcd.print("Panner");
+//  digitalWrite(led, HIGH);
+//  delay(100);
+//  digitalWrite(led, LOW);
+//  lcd.setCursor(0, 0);
+//  lcd.print("Starting DSLR");
+//  lcd.setCursor(0, 1);
+//  lcd.print("Panner");
+  updateButtons();
   //handleMotorUpdate();
   //handleButtonUpdate();
   //handleLimitUpdate();
@@ -112,6 +150,36 @@ void loop()
   camera.Snap();
 #endif
 }
+
+/**
+ * Simple function to listen to the button presses to trigger the menu actions
+ * TODO change this from a Menu Action to return Bool[4] for better code reuse while executing sub menu routines
+ */
+void updateButtons()
+{
+  debounceUp.update();
+  debounceDown.update();
+  debounceBack.update();
+  debounceSelect.update();
+  
+  if(debounceUp.fell())
+  {  
+    menuController.DoMenuAction(MENU_ACTION_UP);
+  }
+  else if(debounceDown.fell())
+  {  
+    menuController.DoMenuAction(MENU_ACTION_DOWN);
+  }
+  else if(debounceBack.fell())
+  {  
+    menuController.DoMenuAction(MENU_ACTION_BACK);
+  }
+  else if(debounceSelect.fell())
+  {  
+    menuController.DoMenuAction(MENU_ACTION_SELECT);
+  }
+}
+
 
 /**
  * This function is to handle the common updates that are required
@@ -127,34 +195,6 @@ void handleMotorUpdate()
     lcd.print("MM:");
     lcd.setCursor(3, 0);
     lcd.print(XAxisStepper.currentPosition());
-  }
-#endif
-}
-
-/**
- * This function is to handle the common updates that are required
- */
-void handleButtonUpdate()
-{
-#ifdef ENABLE_LCD
-  bool result = debouncer.update();
-  if(result)
-  {
-    //pin state changed
-    
-    lcd.setCursor(0, 1);
-    lcd.print("B0:");
-    lcd.setCursor(3, 1);
-    if(debouncer.rose())
-    {
-      // the button was just pressed
-      lcd.print("1");
-    }
-    else
-    {
-      // the button was just released
-      lcd.print("0");
-    }
   }
 #endif
 }
@@ -201,5 +241,36 @@ void handleLimitUpdate()
     }
   }
 #endif
+}
+
+
+/**
+ * The Callback for the Sub Node M1-S1
+ */
+void M1S1Callback( char* menuText, void *userData)
+{
+  char *menuLines[2] = {"M1-S1 Callback", "" };
+  lcdController.PrintMenu(menuLines, 2, 3);// PrintMenu( char ** MenuString, int number of Lines, SelectedLine)
+  delay(5000);
+}
+
+/**
+ * The Callback for the Sub Node M1-S2
+ */
+void M1S2Callback( char* menuText, void *userData)
+{
+  char *menuLines[2] = {"M1-S2 Callback", "" };
+  lcdController.PrintMenu(menuLines, 2, 3);// "Hello" is the string to print, 0 is the Row
+  delay(5000);
+}
+
+/**
+ * The callback for the sibiling node M2
+ */
+void M2Callback( char* menuText, void *userData)
+{
+  char *menuLines[2] = {"M2 Callback", "" };
+  lcdController.PrintMenu(menuLines, 2, 3);
+  delay(5000);
 }
 
