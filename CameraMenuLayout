@@ -1,0 +1,20 @@
+This is the outline of the menu associated with the Camera.
+
+We want 2 functionalities from this tool. 
+Slow movement at a specific rate
+Or we want No movement between multiple pictures (snap, move, snap, move, etc...).
+
+
+* Panoramic
+** Start
+** Settings
+*** Total Viewing Angle (From 0 to 360 in 5 degree increments)
+*** Focal Length (from 10mm to 800mm)
+*** Overlaping (in degrees)
+* Tracking (requires bulb to be set on the camera)
+** Start
+** Settings
+*** Speed (degrees/min)
+* Options
+** Right to Left
+** Version

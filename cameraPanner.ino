@@ -80,22 +80,57 @@ void setup() {
   pinMode(STEPPER_SLEEP_PIN, OUTPUT);
   digitalWrite(STEPPER_SLEEP_PIN, HIGH);
   XAxisStepper.setMaxSpeed(10);
-  XAxisStepper.setSpeed(1);
 #endif
+  XAxisStepper.setSpeed(1);
 
   lcdController.MenuLCDSetup();
   
   // Define the Menu objects 
-  MenuEntry * rootMenuEntry = new MenuEntry("M1", NULL, NULL);
-  MenuEntry * M1S1MenuEntry = new MenuEntry("M1-S1", NULL, M1S1Callback);
-  MenuEntry * M1S2MenuEntry = new MenuEntry("M1-S2", NULL, M1S2Callback);
-  MenuEntry * M2MenuEntry = new MenuEntry("M2", NULL, M2Callback);
-  
+  MenuEntry * rootMenuEntry = new MenuEntry("Camera Panner", NULL, NULL);
+
+  MenuEntry * PanoramicMenuEntry = new MenuEntry("Panoramic", NULL, M2Callback);
+  MenuEntry * PanoramicStartMenuEntry = new MenuEntry("Start", NULL, M2Callback);
+  MenuEntry * PanoramicSettingsMenuEntry = new MenuEntry("Settings", NULL, M2Callback);
+  MenuEntry * PanoramicTotalViewAngleMenuEntry = new MenuEntry("Total View Angle", NULL, M2Callback);
+  MenuEntry * PanoramicFocalLengthMenuEntry = new MenuEntry("Focal Length", NULL, M2Callback);
+  MenuEntry * PanoramicOverlappingMenuEntry = new MenuEntry("Overlapping", NULL, M2Callback);
+
+  MenuEntry * TrackingMenuEntry = new MenuEntry("Tracking", NULL, M2Callback);
+  MenuEntry * TrackingStartMenuEntry = new MenuEntry("Start", NULL, M2Callback);
+  MenuEntry * TrackingSettingsMenuEntry = new MenuEntry("Settings", NULL, M2Callback);
+  MenuEntry * TrackingSpeedMenuEntry = new MenuEntry("Speed", NULL, M2Callback);
+
+  MenuEntry * OptionsMenuEntry = new MenuEntry("Options", NULL, M2Callback);
+  MenuEntry * OptionsRightToLeftMenuEntry = new MenuEntry("Right To Left", NULL, M2Callback);
+  MenuEntry * OptionsVersionMenuEntry = new MenuEntry("Version", NULL, M2Callback);
+
   //Add the root node, then it's children
   menuController.addMenuRoot(rootMenuEntry);
-  menuController.addChild(M1S1MenuEntry);    
-  menuController.addChild(M1S2MenuEntry);  
-  menuController.addSibling(M2MenuEntry);
+  menuController.addChild(PanoramicMenuEntry);
+  
+  menuController.MenuSelect();
+  menuController.addChild(PanoramicStartMenuEntry);
+  menuController.addChild(PanoramicSettingsMenuEntry);
+  
+  menuController.MenuSelect();
+  menuController.addChild(PanoramicTotalViewAngleMenuEntry);
+  menuController.addChild(PanoramicFocalLengthMenuEntry);    
+  menuController.addChild(PanoramicOverlappingMenuEntry);
+  
+  menuController.MenuBack();// back from settings to Panoramic Menu
+  menuController.addSibling(TrackingMenuEntry);
+  
+  menuController.MenuDown();//Move to the Tracking Node  
+  menuController.addChild(TrackingStartMenuEntry);
+  menuController.addChild(TrackingSettingsMenuEntry);
+  menuController.MenuSelect();//Move to the Tracking Settings Node
+  menuController.addChild(TrackingSpeedMenuEntry);
+  
+  menuController.MenuBack();// back from settings to Tracking
+  menuController.addSibling(OptionsMenuEntry);
+  menuController.MenuDown();// Move to the Options Node
+  menuController.addChild(OptionsRightToLeftMenuEntry);
+  menuController.addChild(OptionsVersionMenuEntry);
   menuController.SelectRoot();
   menuController.DrawMenu();   
 
