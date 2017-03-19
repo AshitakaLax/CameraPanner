@@ -1,3 +1,4 @@
+
  /**
  * Author Levi Balling
  * This code is free for anyone to use.
@@ -7,20 +8,14 @@
 #include <MenuIntHelper.h>
 #include <MenuLCD.h>
 #include <MenuManager.h>
-#include <AccelStepper.h>
+
+#include <BasicStepperDriver.h>
+#include <DRV8825.h>
+
 #include <Bounce2.h>
 #include <NikonRemote.h>// http://www.cibomahto.com/2008/10/october-thing-a-day-day-7-nikon-camera-intervalometer-part-1/
 
 const int led = LED_BUILTIN;
-//#define ENABLE_STEPPER 1
-#define STEPPER_ENABLE_PIN  0
-#define STEPPER_M0_PIN  1
-#define STEPPER_M1_PIN  2
-#define STEPPER_M2_PIN  3
-#define STEPPER_RESET_PIN  4
-#define STEPPER_SLEEP_PIN  5
-#define STEPPER_STEP_PIN  6
-#define STEPPER_DIRECTION_PIN  7
 
 //IR Remote Pins
 //#define ENABLE_IR_LED 1
@@ -36,9 +31,20 @@ const int led = LED_BUILTIN;
 #define LC_D4_PIN  38
 
 // Define Globals
-#ifdef ENABLE_STEPPER
-AccelStepper XAxisStepper(1, STEPPER_STEP_PIN, STEPPER_DIRECTION_PIN);
-#endif
+#define ENABLE_STEPPER 1
+
+#define STEPPER_GEAR_RATIO 2 //It spins a gear that is half the size. meaning for every 2 revolutions the camera will spin 1.
+#define STEPPER_STEPS_PER_REV 200
+#define STEPPER_ENABLE_PIN  0
+#define STEPPER_M0_PIN  1
+#define STEPPER_M1_PIN  2
+#define STEPPER_M2_PIN  3
+#define STEPPER_RESET_PIN  4
+#define STEPPER_SLEEP_PIN  5
+#define STEPPER_STEP_PIN  6
+#define STEPPER_DIRECTION_PIN  7
+
+DRV8825 XAxisStepper(STEPPER_STEPS_PER_REV, STEPPER_DIRECTION_PIN, STEPPER_STEP_PIN, STEPPER_M0_PIN, STEPPER_M1_PIN, STEPPER_M2_PIN);
 
 // Example uses 4 buttons
 // User Input Switches
@@ -51,11 +57,25 @@ Bounce debounceDown = Bounce();
 Bounce debounceBack = Bounce();
 Bounce debounceSelect = Bounce();
 
+String VERSION = "0.0.2";
+
+// System Settings Variable
+
+// Panoramic Settings
+double g_TotalViewingAngle = 0.0;
+int g_FocalLength = 55;//highest for my current lens
+int g_Overlapping = 5;//overlap each lense by 5 degrees
+
+// Tracking Settings
+double g_DegreesPerMin = 5.0;//
+
+// Global Settings
+bool g_RightToLeft = false;// the camera pans from Right to Left
+
 #ifdef ENABLE_LCD
 MenuLCD lcdController(LC_RS_PIN, LC_EN_PIN, LC_D4_PIN, LC_D5_PIN, LC_D6_PIN, LC_D7_PIN, 16, 2);
 MenuManager menuController( &lcdController);  
 
-//LiquidCrystal lcd(LC_RS_PIN, LC_EN_PIN, LC_D4_PIN, LC_D5_PIN, LC_D6_PIN, LC_D7_PIN);
 #endif
 
 #ifdef ENABLE_IR_LED
@@ -66,53 +86,61 @@ void setup() {
   pinMode(led, OUTPUT);
   // Setup the Stepper Motor
 
-#ifdef ENABLE_STEPPER
+  //setupStepperMotor();
+  // Setup Buttons for the Menu System
+  setupMenu();
+  setupButtons();
+}
+
+/**
+ * Setup the Stepper Motor
+ */
+void setupStepperMotor()
+{
   pinMode(STEPPER_ENABLE_PIN, OUTPUT);
   digitalWrite(STEPPER_ENABLE_PIN, LOW);
-  pinMode(STEPPER_M0_PIN, OUTPUT);
-  digitalWrite(STEPPER_M0_PIN, LOW);
-  pinMode(STEPPER_M1_PIN, OUTPUT);
-  digitalWrite(STEPPER_M1_PIN, LOW);
-  pinMode(STEPPER_M2_PIN, OUTPUT);
-  digitalWrite(STEPPER_M2_PIN, LOW);
   pinMode(STEPPER_RESET_PIN, OUTPUT);
   digitalWrite(STEPPER_RESET_PIN, HIGH);
   pinMode(STEPPER_SLEEP_PIN, OUTPUT);
   digitalWrite(STEPPER_SLEEP_PIN, HIGH);
-  XAxisStepper.setMaxSpeed(10);
-#endif
-  XAxisStepper.setSpeed(1);
+  XAxisStepper.setRPM(20);
+}
 
+/**
+ * Setup the menu for the System
+ */
+void setupMenu()
+{
   lcdController.MenuLCDSetup();
-  
   // Define the Menu objects 
   MenuEntry * rootMenuEntry = new MenuEntry("Camera Panner", NULL, NULL);
 
-  MenuEntry * PanoramicMenuEntry = new MenuEntry("Panoramic", NULL, M2Callback);
-  MenuEntry * PanoramicStartMenuEntry = new MenuEntry("Start", NULL, M2Callback);
-  MenuEntry * PanoramicSettingsMenuEntry = new MenuEntry("Settings", NULL, M2Callback);
-  MenuEntry * PanoramicTotalViewAngleMenuEntry = new MenuEntry("Total View Angle", NULL, M2Callback);
-  MenuEntry * PanoramicFocalLengthMenuEntry = new MenuEntry("Focal Length", NULL, M2Callback);
-  MenuEntry * PanoramicOverlappingMenuEntry = new MenuEntry("Overlapping", NULL, M2Callback);
+  MenuEntry * PanoramicMenuEntry = new MenuEntry("Panoramic", NULL, emptyCallback);
+  MenuEntry * PanoramicStartMenuEntry = new MenuEntry("Start", NULL, emptyCallback);
+  MenuEntry * PanoramicSettingsMenuEntry = new MenuEntry("Settings", NULL, emptyCallback);
+  MenuEntry * PanoramicTotalViewAngleMenuEntry = new MenuEntry("Total View Angle", NULL, TotalViewingAngle);
+  MenuEntry * PanoramicFocalLengthMenuEntry = new MenuEntry("Focal Length", NULL, emptyCallback);
+  MenuEntry * PanoramicOverlappingMenuEntry = new MenuEntry("Overlapping", NULL, emptyCallback);
 
-  MenuEntry * TrackingMenuEntry = new MenuEntry("Tracking", NULL, M2Callback);
-  MenuEntry * TrackingStartMenuEntry = new MenuEntry("Start", NULL, M2Callback);
-  MenuEntry * TrackingSettingsMenuEntry = new MenuEntry("Settings", NULL, M2Callback);
-  MenuEntry * TrackingSpeedMenuEntry = new MenuEntry("Speed", NULL, M2Callback);
+  MenuEntry * TrackingMenuEntry = new MenuEntry("Tracking", NULL, emptyCallback);
+  MenuEntry * TrackingStartMenuEntry = new MenuEntry("Start", NULL, emptyCallback);
+  MenuEntry * TrackingSettingsMenuEntry = new MenuEntry("Settings", NULL, emptyCallback);
+  MenuEntry * TrackingSpeedMenuEntry = new MenuEntry("Speed", NULL, emptyCallback);
 
-  MenuEntry * OptionsMenuEntry = new MenuEntry("Options", NULL, M2Callback);
-  MenuEntry * OptionsRightToLeftMenuEntry = new MenuEntry("Right To Left", NULL, M2Callback);
-  MenuEntry * OptionsVersionMenuEntry = new MenuEntry("Version", NULL, M2Callback);
+  MenuEntry * OptionsMenuEntry = new MenuEntry("Options", NULL, emptyCallback);
+  MenuEntry * OptionsRightToLeftMenuEntry = new MenuEntry("Right To Left", NULL, emptyCallback);
+  MenuEntry * OptionsVersionMenuEntry = new MenuEntry("Version", &VERSION, DisplayUserDataString);
 
   //Add the root node, then it's children
   menuController.addMenuRoot(rootMenuEntry);
   menuController.addChild(PanoramicMenuEntry);
   
-  menuController.MenuSelect();
+  menuController.MenuSelect();//Select the Panoramic Menu
   menuController.addChild(PanoramicStartMenuEntry);
   menuController.addChild(PanoramicSettingsMenuEntry);
   
-  menuController.MenuSelect();
+  menuController.MenuSelect();//Select the Start level
+  menuController.MenuDown();//Move down to Settings
   menuController.addChild(PanoramicTotalViewAngleMenuEntry);
   menuController.addChild(PanoramicFocalLengthMenuEntry);    
   menuController.addChild(PanoramicOverlappingMenuEntry);
@@ -123,7 +151,8 @@ void setup() {
   menuController.MenuDown();//Move to the Tracking Node  
   menuController.addChild(TrackingStartMenuEntry);
   menuController.addChild(TrackingSettingsMenuEntry);
-  menuController.MenuSelect();//Move to the Tracking Settings Node
+  menuController.MenuSelect();//Move to the Tracking start Settings Level
+  menuController.MenuDown();//Move to the Settings Node
   menuController.addChild(TrackingSpeedMenuEntry);
   
   menuController.MenuBack();// back from settings to Tracking
@@ -133,9 +162,6 @@ void setup() {
   menuController.addChild(OptionsVersionMenuEntry);
   menuController.SelectRoot();
   menuController.DrawMenu();   
-
-  // Setup Buttons for the Menu System
-  setupButtons();
 }
 
 /**
@@ -169,18 +195,8 @@ void setupButtons()
 
 void loop() 
 {
-//  digitalWrite(led, HIGH);
-//  delay(100);
-//  digitalWrite(led, LOW);
-//  lcd.setCursor(0, 0);
-//  lcd.print("Starting DSLR");
-//  lcd.setCursor(0, 1);
-//  lcd.print("Panner");
   updateButtons();
-  //handleMotorUpdate();
-  //handleButtonUpdate();
-  //handleLimitUpdate();
-  //delay(5000);
+ // handleMotorUpdate();
 #ifdef ENABLE_IR_LED
   camera.Snap();
 #endif
@@ -215,97 +231,112 @@ void updateButtons()
   }
 }
 
+/**
+ * Populates a boolean array that was passed in with the values
+ */
+void getButtonsPressed(bool* buttonArr)
+{
+  debounceUp.update();
+  debounceDown.update();
+  debounceBack.update();
+  debounceSelect.update();
+  
+  buttonArr[0] = debounceUp.fell();
+  buttonArr[1] = debounceDown.fell();
+  buttonArr[2] = debounceBack.fell();
+  buttonArr[3] = debounceSelect.fell();
+  
+}
+
 
 /**
  * This function is to handle the common updates that are required
  */
 void handleMotorUpdate()
 {
-#ifdef ENABLE_STEPPER
-  bool result = XAxisStepper.runSpeed();
-  
-  // check where the current position of the stepper motor is where it should be.
-  if(result)
-  {
-    lcd.print("MM:");
-    lcd.setCursor(3, 0);
-    lcd.print(XAxisStepper.currentPosition());
-  }
-#endif
-}
-
-void handleLimitUpdate()
-{
-#ifdef ENABLE_STEPPER
-  bool result = limitSwitchOne.update();
-  if(result)
-  {
-    //pin state changed
-    
-    lcd.setCursor(0, 1);
-    lcd.print("B0:");
-    lcd.setCursor(3, 1);
-    if(limitSwitchOne.rose())
-    {
-      // the Limit was just Hit
-      lcd.print("1");
-    }
-    else
-    {
-      // the Limit was just released
-      lcd.print("0");
-    }
-  }
-  result = limitSwitchTwo.update();
-  if(result)
-  {
-    //pin state changed
-    
-    lcd.setCursor(0, 1);
-    lcd.print("B0:");
-    lcd.setCursor(3, 1);
-    if(limitSwitchTwo.rose())
-    {
-      // the Limit was just Hit
-      lcd.print("1");
-    }
-    else
-    {
-      // the Limit was just released
-      lcd.print("0");
-    }
-  }
-#endif
-}
-
-
-/**
- * The Callback for the Sub Node M1-S1
- */
-void M1S1Callback( char* menuText, void *userData)
-{
-  char *menuLines[2] = {"M1-S1 Callback", "" };
-  lcdController.PrintMenu(menuLines, 2, 3);// PrintMenu( char ** MenuString, int number of Lines, SelectedLine)
-  delay(5000);
+  XAxisStepper.setMicrostep(1);
+  XAxisStepper.rotate(360);
 }
 
 /**
  * The Callback for the Sub Node M1-S2
  */
-void M1S2Callback( char* menuText, void *userData)
+void DisplayUserDataString( char* menuText, void *userData)
 {
-  char *menuLines[2] = {"M1-S2 Callback", "" };
-  lcdController.PrintMenu(menuLines, 2, 3);// "Hello" is the string to print, 0 is the Row
+  String * versionPtr = (String*)userData;
+//  char versionStr[16];
+//  versionPtr->toCharArray(versionStr, versionPtr->length()+1);
+//  char *menuLines[2] = {versionStr, "" };
+//  lcdController.PrintMenu(menuLines, 2, 3);// "Hello" is the string to print, 0 is the Row
+  String strTwo = "";
+  lcdPrintString(versionPtr, &strTwo);
   delay(5000);
 }
 
+
+void emptyCallback( char* menuText, void *userData)
+{
+  
+  char *menuLines[2] = {"Temp Callback", "Temp Callback"};
+  lcdController.PrintMenu(menuLines, 2, 3);// "Hello" is the string to print, 0 is the Row
+}
 /**
  * The callback for the sibiling node M2
  */
-void M2Callback( char* menuText, void *userData)
+void TotalViewingAngle( char* menuText, void *userData)
 {
-  char *menuLines[2] = {"M2 Callback", "" };
-  lcdController.PrintMenu(menuLines, 2, 3);
-  delay(5000);
+  String lineOne = "Tot View Angle";
+  String lineTwo = "";
+  lineTwo.concat(g_TotalViewingAngle);
+  lcdPrintString(&lineOne, &lineTwo);
+
+  while(true)
+  {
+    bool buttonState[4];
+    getButtonsPressed(buttonState);
+    if(buttonState[0])
+    {
+      //up pressed
+      g_TotalViewingAngle += 5.0;
+      if(g_TotalViewingAngle > 360)
+      {
+        g_TotalViewingAngle = 360.0;
+      }
+    }
+    else if(buttonState[1])
+    {
+      //Down pressed
+      g_TotalViewingAngle -= 5.0;
+      if(g_TotalViewingAngle < 0)
+      {
+        g_TotalViewingAngle = 0;
+      }
+    }
+    else if(buttonState[2] || buttonState[3])
+    {
+      //Back or Select Pressed
+      return;
+    }
+    else
+    {
+      continue;
+    }
+    lineTwo = "";
+    lineTwo.concat(g_TotalViewingAngle);
+    lcdPrintString(&lineOne, &lineTwo);
+  }
+}
+
+
+
+void lcdPrintString(String* lineOne, String* lineTwo)
+{
+  char strOne[16] = "";
+  char strTwo[16] = "";
+  lineOne->toCharArray(strOne, lineOne->length()+1);
+  lineTwo->toCharArray(strTwo, lineTwo->length()+1);
+  
+  char *menuLines[2] = {strOne, strTwo};
+  lcdController.PrintMenu(menuLines, 2, 3);// "Hello" is the string to print, 0 is the Row
 }
 
