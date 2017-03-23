@@ -66,6 +66,89 @@ double g_TotalViewingAngle = 0.0;
 int g_FocalLength = 55;//highest for my current lens
 int g_Overlapping = 5;//overlap each lense by 5 degrees
 
+#define FOCAL_LENGTH_COUNT 37
+int g_FocalLengthIndex = 16;
+int g_FocalLengthArr[FOCAL_LENGTH_COUNT] ={
+10,
+11,
+12,
+14,
+15,
+17,
+18,
+19,
+20,
+24,
+28,
+30,
+35,
+45,
+50,
+55,
+60,
+70,
+75,
+80,
+85,
+90,
+100,
+105,
+120,
+125,
+135,
+150,
+170,
+180,
+200,
+210,
+300,
+400,
+500,
+600,
+800
+}
+
+double g_FieldOfViewAngleArr[FOCAL_LENGTH_COUNT] = {
+99.0,
+93.5,
+88.5,
+79.8,
+75.9,
+69.1,
+66.0,
+63.2,
+60.7,
+52.0,
+45.4,
+42.6,
+37.0,
+29.1,
+26.3,
+24.0,
+22.1,
+19.0,
+17.7,
+16.6,
+15.7,
+14.8,
+13.3,
+12.7,
+11.1,
+10.7,
+9.9,
+8.9,
+7.9,
+7.4,
+6.7,
+6.4,
+4.5,
+3.4,
+2.7,
+2.2,
+1.7
+}
+
+
 // Tracking Settings
 double g_DegreesPerMin = 5.0;//
 
@@ -280,8 +363,9 @@ void emptyCallback( char* menuText, void *userData)
   char *menuLines[2] = {"Temp Callback", "Temp Callback"};
   lcdController.PrintMenu(menuLines, 2, 3);// "Hello" is the string to print, 0 is the Row
 }
+
 /**
- * The callback for the sibiling node M2
+ * The callback for the Total Viewing Angle
  */
 void TotalViewingAngle( char* menuText, void *userData)
 {
@@ -327,6 +411,56 @@ void TotalViewingAngle( char* menuText, void *userData)
   }
 }
 
+/**
+ * The callback for Setting the Camera Focal Length
+ */
+void CameraFocalLength( char* menuText, void *userData)
+{
+  String lineOne = "F Length:";
+  String lineTwo = "FOV Angle:";
+  lineOne.concat(g_FocalLengthArr[g_FocalLengthIndex]);
+  lineTwo.concat(g_FieldOfViewAngleArr[g_FocalLengthIndex]);
+  lcdPrintString(&lineOne, &lineTwo);
+  
+  while(true)
+  {
+    bool buttonState[4];
+    getButtonsPressed(buttonState);
+    if(buttonState[0])
+    {
+      //up pressed
+      g_FocalLengthIndex++;
+      if(g_FocalLengthIndex > FOCAL_LENGTH_COUNT)
+      {
+        g_FocalLengthIndex = FOCAL_LENGTH_COUNT;
+      }
+    }
+    else if(buttonState[1])
+    {
+      //Down pressed
+      g_FocalLengthIndex--;
+      if(g_FocalLengthIndex < 0)
+      {
+        g_FocalLengthIndex = 0;
+      }
+    }
+    else if(buttonState[2] || buttonState[3])
+    {
+      //Back or Select Pressed
+      return;
+    }
+    else
+    {
+      continue;
+    }
+	
+    lineOne = "F Length:";
+    lineTwo = "FOV Angle:";
+    lineOne.concat(g_FocalLengthArr[g_FocalLengthIndex]);
+    lineTwo.concat(g_FieldOfViewAngleArr[g_FocalLengthIndex]);
+    lcdPrintString(&lineOne, &lineTwo);
+  }
+}
 
 
 void lcdPrintString(String* lineOne, String* lineTwo)
