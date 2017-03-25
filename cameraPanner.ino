@@ -64,7 +64,8 @@ String VERSION = "0.0.2";
 // Panoramic Settings
 double g_TotalViewingAngle = 0.0;
 int g_FocalLength = 55;//highest for my current lens
-int g_Overlapping = 5;//overlap each lense by 5 degrees
+double g_Overlapping = 0.1;//overlap each lense by 10 percent of Current Field of View
+double g_shutterDuration = 0.005;//this ranges from 0.00025 in increments 0.01
 
 #define FOCAL_LENGTH_COUNT 37
 int g_FocalLengthIndex = 16;
@@ -106,7 +107,7 @@ int g_FocalLengthArr[FOCAL_LENGTH_COUNT] ={
 500,
 600,
 800
-}
+};
 
 double g_FieldOfViewAngleArr[FOCAL_LENGTH_COUNT] = {
 99.0,
@@ -146,7 +147,7 @@ double g_FieldOfViewAngleArr[FOCAL_LENGTH_COUNT] = {
 2.7,
 2.2,
 1.7
-}
+};
 
 
 // Tracking Settings
@@ -199,11 +200,11 @@ void setupMenu()
   MenuEntry * rootMenuEntry = new MenuEntry("Camera Panner", NULL, NULL);
 
   MenuEntry * PanoramicMenuEntry = new MenuEntry("Panoramic", NULL, emptyCallback);
-  MenuEntry * PanoramicStartMenuEntry = new MenuEntry("Start", NULL, emptyCallback);
+  MenuEntry * PanoramicStartMenuEntry = new MenuEntry("Start", NULL, StartPanoramicPhoto);
   MenuEntry * PanoramicSettingsMenuEntry = new MenuEntry("Settings", NULL, emptyCallback);
   MenuEntry * PanoramicTotalViewAngleMenuEntry = new MenuEntry("Total View Angle", NULL, TotalViewingAngle);
-  MenuEntry * PanoramicFocalLengthMenuEntry = new MenuEntry("Focal Length", NULL, emptyCallback);
-  MenuEntry * PanoramicOverlappingMenuEntry = new MenuEntry("Overlapping", NULL, emptyCallback);
+  MenuEntry * PanoramicFocalLengthMenuEntry = new MenuEntry("Focal Length", NULL, CameraFocalLength);
+  MenuEntry * PanoramicOverlappingMenuEntry = new MenuEntry("Overlapping", NULL, PanOverLapDegrees);
 
   MenuEntry * TrackingMenuEntry = new MenuEntry("Tracking", NULL, emptyCallback);
   MenuEntry * TrackingStartMenuEntry = new MenuEntry("Start", NULL, emptyCallback);
@@ -212,6 +213,7 @@ void setupMenu()
 
   MenuEntry * OptionsMenuEntry = new MenuEntry("Options", NULL, emptyCallback);
   MenuEntry * OptionsRightToLeftMenuEntry = new MenuEntry("Right To Left", NULL, emptyCallback);
+  MenuEntry * ExposureMenuEntry = new MenuEntry("Exposure Time", NULL, ShutterSpeedSetting);//we need to figure out the Camera.Snap code
   MenuEntry * OptionsVersionMenuEntry = new MenuEntry("Version", &VERSION, DisplayUserDataString);
 
   //Add the root node, then it's children
@@ -242,6 +244,7 @@ void setupMenu()
   menuController.addSibling(OptionsMenuEntry);
   menuController.MenuDown();// Move to the Options Node
   menuController.addChild(OptionsRightToLeftMenuEntry);
+  menuController.addChild(ExposureMenuEntry);
   menuController.addChild(OptionsVersionMenuEntry);
   menuController.SelectRoot();
   menuController.DrawMenu();   
@@ -272,9 +275,6 @@ void setupButtons()
   debounceSelect.attach(BUTTON_SELECT_PIN);
   debounceSelect.interval(5);
 }
-
-
-
 
 void loop() 
 {
@@ -342,6 +342,42 @@ void handleMotorUpdate()
 }
 
 /**
+* Gets the amount of Field of view angle that will be overlapping between each photo
+*/
+double GetOverlappingAngle()
+{
+	// multiple the number of 
+	return g_Overlapping * g_FieldOfViewAngleArr[g_FocalLengthIndex];
+}
+
+/**
+* Based on the FOV, and the amount of overlapping this will determine the number of pictures that will need to be taken.
+*/
+int GetNumberOfPanoramicPhotos()
+{
+	// Get the Total Viewing Angle
+	g_TotalViewingAngle;
+	// Get the single picture Field of View Angle
+	double fov = g_FieldOfViewAngleArr[g_FocalLengthIndex];
+	// Subtract the overlapping amount from the Field of View Angle
+	fov = fov - GetOverlappingAngle();
+	// divide the total viewing angle by the result
+	int numberOfPics = (int)(g_TotalViewingAngle / fov);
+	//This is to always take the extra picture at the end to make sure that we get all the image we need.
+	numberOfPics++;
+	return numberOfPics;
+}
+double GetRotatingAngle()
+{
+  g_TotalViewingAngle;
+  // Get the single picture Field of View Angle
+  double fov = g_FieldOfViewAngleArr[g_FocalLengthIndex];
+  // Subtract the overlapping amount from the Field of View Angle
+  fov = fov - GetOverlappingAngle();
+  return fov;
+}
+
+/**
  * The Callback for the Sub Node M1-S2
  */
 void DisplayUserDataString( char* menuText, void *userData)
@@ -355,6 +391,52 @@ void DisplayUserDataString( char* menuText, void *userData)
   lcdPrintString(versionPtr, &strTwo);
   delay(5000);
 }
+
+
+/**
+ * The callback for the Total Viewing Angle
+ */
+void StartPanoramicPhoto( char* menuText, void *userData)
+{
+  String lineOne = "# ";
+  String lineTwo = "";
+  int numOfPictures = GetNumberOfPanoramicPhotos();
+  int currentPic = 0;
+  int delayBetween = (int)(g_shutterDuration * 1000);//convert to an int
+  lineOne.concat(currentPic);
+  
+  lineOne.concat(" of ");
+  lineOne.concat(numOfPictures);
+  lcdPrintString(&lineOne, &lineTwo);
+
+  // TODO
+  // Calibrate the start position
+  
+  //rotating angle 
+  double rotateAngle = GetRotatingAngle();
+
+  while(currentPic < numOfPictures)
+  {
+    lineOne = "# ";
+    lineOne.concat(currentPic);
+    
+    lineOne.concat(" of ");
+    lineOne.concat(numOfPictures);
+    lcdPrintString(&lineOne, &lineTwo);
+    // take the picture();
+    // Determine if the setting is bulb
+    // Wait till the photo is done taking a photo
+    delay(delayBetween);
+    // if bulb send camera snap again to close the picture
+    
+    // rotate motor
+    // TODO rotate motor
+    //wait for rotation to be complete
+    delay(3000);
+    currentPic++;//move to take the next photo
+  }
+}
+
 
 
 void emptyCallback( char* menuText, void *userData)
@@ -458,6 +540,124 @@ void CameraFocalLength( char* menuText, void *userData)
     lineTwo = "FOV Angle:";
     lineOne.concat(g_FocalLengthArr[g_FocalLengthIndex]);
     lineTwo.concat(g_FieldOfViewAngleArr[g_FocalLengthIndex]);
+    lcdPrintString(&lineOne, &lineTwo);
+  }
+}
+
+/**
+ * The callback for Setting the Panning overlap by percentage
+ */
+void PanOverLapDegrees( char* menuText, void *userData)
+{
+  String lineOne = "FOV %:";
+  String lineTwo = "FOV Overlap:";
+  lineOne.concat(g_Overlapping);
+  lineTwo.concat(GetOverlappingAngle());
+  lcdPrintString(&lineOne, &lineTwo);
+  
+  while(true)
+  {
+    bool buttonState[4];
+    getButtonsPressed(buttonState);
+	
+    if(buttonState[0])
+    {
+      //up pressed
+      g_Overlapping += 0.05;
+      if(g_Overlapping >0.95)
+      {
+        g_Overlapping = 0.95;
+      }
+    }
+    else if(buttonState[1])
+    {
+      //Down pressed
+      g_Overlapping -= 0.05;
+      if(g_Overlapping < 0.0)
+      {
+        g_Overlapping = 0.0;
+      }
+    }
+    else if(buttonState[2] || buttonState[3])
+    {
+      //Back or Select Pressed
+      return;
+    }
+    else
+    {
+      continue;
+    }
+	
+
+    lineOne = "FOV %:";
+    lineTwo = "FOV Overlap:";
+    lineOne.concat(g_Overlapping);
+    lineTwo.concat(GetOverlappingAngle());
+    lcdPrintString(&lineOne, &lineTwo);
+  }
+}
+
+/**
+ * The callback for Setting the Shutter Speed
+ */
+void ShutterSpeedSetting( char* menuText, void *userData)
+{
+  String lineOne = "shuttSpd:";
+  String lineTwo = "";
+  lineOne.concat(g_shutterDuration);
+  lcdPrintString(&lineOne, &lineTwo);
+  
+  while(true)
+  {
+    bool buttonState[4];
+    double incrementAmount = 1.0;
+    getButtonsPressed(buttonState);
+    
+    //determine the increment amount
+    if(g_shutterDuration > 0.1 && g_shutterDuration <= 1.0)
+    {
+      incrementAmount = 0.1;
+    }
+    else if(g_shutterDuration > 0.01 && g_shutterDuration <= 0.1)
+    {
+      incrementAmount = 0.01;
+    }
+    else if(g_shutterDuration > 0.001 && g_shutterDuration <= 0.01)
+    {
+      incrementAmount = 0.001;
+    }
+
+    if(buttonState[0])
+    {
+      //up pressed
+      g_shutterDuration += incrementAmount;
+      if(g_shutterDuration >30.0)
+      {
+        g_shutterDuration = 30.0;
+      }
+    }
+    else if(buttonState[1])
+    {
+      //Down pressed
+      g_shutterDuration += incrementAmount;
+      if(g_shutterDuration < 0.00025)
+      {
+        g_Overlapping = 0.00025;
+      }
+    }
+    else if(buttonState[2] || buttonState[3])
+    {
+      //Back or Select Pressed
+      return;
+    }
+    else
+    {
+      continue;
+    }
+
+    lineOne = "shuttSpd:";
+    lineTwo = "";
+    lineTwo.concat(g_shutterDuration);
     lcdPrintString(&lineOne, &lineTwo);
   }
 }
