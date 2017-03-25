@@ -18,7 +18,7 @@
 const int led = LED_BUILTIN;
 
 //IR Remote Pins
-//#define ENABLE_IR_LED 1
+#define ENABLE_IR_LED 1
 #define IR_LED_PIN 27
 
 //LCD Pins
@@ -34,6 +34,8 @@ const int led = LED_BUILTIN;
 #define ENABLE_STEPPER 1
 
 #define STEPPER_GEAR_RATIO 2 //It spins a gear that is half the size. meaning for every 2 revolutions the camera will spin 1.
+#define STEPPER_RPM_SPEED 60 //So it can do 360 degree turn in 1 second
+
 #define STEPPER_STEPS_PER_REV 200
 #define STEPPER_ENABLE_PIN  0
 #define STEPPER_M0_PIN  1
@@ -57,15 +59,15 @@ Bounce debounceDown = Bounce();
 Bounce debounceBack = Bounce();
 Bounce debounceSelect = Bounce();
 
-String VERSION = "0.0.2";
+String VERSION = "0.0.3";
 
 // System Settings Variable
 
 // Panoramic Settings
-double g_TotalViewingAngle = 0.0;
+double g_TotalViewingAngle = 25.0;
 int g_FocalLength = 55;//highest for my current lens
 double g_Overlapping = 0.1;//overlap each lense by 10 percent of Current Field of View
-double g_shutterDuration = 0.005;//this ranges from 0.00025 in increments 0.01
+double g_shutterDuration = 0.05;//this ranges from 0.00025 in increments 0.01
 
 #define FOCAL_LENGTH_COUNT 37
 int g_FocalLengthIndex = 16;
@@ -187,7 +189,7 @@ void setupStepperMotor()
   digitalWrite(STEPPER_RESET_PIN, HIGH);
   pinMode(STEPPER_SLEEP_PIN, OUTPUT);
   digitalWrite(STEPPER_SLEEP_PIN, HIGH);
-  XAxisStepper.setRPM(20);
+  XAxisStepper.setRPM(STEPPER_RPM_SPEED);
 }
 
 /**
@@ -280,9 +282,6 @@ void loop()
 {
   updateButtons();
  // handleMotorUpdate();
-#ifdef ENABLE_IR_LED
-  camera.Snap();
-#endif
 }
 
 /**
@@ -413,7 +412,10 @@ void StartPanoramicPhoto( char* menuText, void *userData)
   // Calibrate the start position
   
   //rotating angle 
+  //1 rev/Second
+  // rotateAngle / 360 = percentage of 1 revolution
   double rotateAngle = GetRotatingAngle();
+  int milliSecondRotateDelay = 1000;// enough time for 1 whole rotation
 
   while(currentPic < numOfPictures)
   {
@@ -423,16 +425,16 @@ void StartPanoramicPhoto( char* menuText, void *userData)
     lineOne.concat(" of ");
     lineOne.concat(numOfPictures);
     lcdPrintString(&lineOne, &lineTwo);
-    // take the picture();
+	camera.Snap();
     // Determine if the setting is bulb
     // Wait till the photo is done taking a photo
     delay(delayBetween);
     // if bulb send camera snap again to close the picture
     
     // rotate motor
-    // TODO rotate motor
+	XAxisStepper.rotate(rotateAngle);
     //wait for rotation to be complete
-    delay(3000);
+	delay(milliSecondRotateDelay);
     currentPic++;//move to take the next photo
   }
 }
@@ -602,29 +604,30 @@ void PanOverLapDegrees( char* menuText, void *userData)
  */
 void ShutterSpeedSetting( char* menuText, void *userData)
 {
-  String lineOne = "shuttSpd:";
+  String lineOne = "Shutter Speed";
   String lineTwo = "";
-  lineOne.concat(g_shutterDuration);
+  lineTwo.concat(g_shutterDuration);
   lcdPrintString(&lineOne, &lineTwo);
   
   while(true)
   {
     bool buttonState[4];
-    double incrementAmount = 1.0;
+    double incrementAmount = 0.001;
     getButtonsPressed(buttonState);
     
     //determine the increment amount
-    if(g_shutterDuration > 0.1 && g_shutterDuration <= 1.0)
-    {
-      incrementAmount = 0.1;
-    }
-    else if(g_shutterDuration > 0.01 && g_shutterDuration <= 0.1)
+	
+    if(g_shutterDuration >= 0.01 && g_shutterDuration <= 0.15)
     {
       incrementAmount = 0.01;
     }
-    else if(g_shutterDuration > 0.001 && g_shutterDuration <= 0.01)
+    if(g_shutterDuration >= 0.1 && g_shutterDuration <= 1.5)
     {
-      incrementAmount = 0.001;
+      incrementAmount = 0.1;
+    }
+    if(g_shutterDuration > 1.0)
+    {
+      incrementAmount = 1;
     }
 
     if(buttonState[0])
@@ -639,7 +642,7 @@ void ShutterSpeedSetting( char* menuText, void *userData)
     else if(buttonState[1])
     {
       //Down pressed
-      g_shutterDuration += incrementAmount;
+      g_shutterDuration -= incrementAmount;
       if(g_shutterDuration < 0.00025)
       {
         g_Overlapping = 0.00025;
@@ -655,7 +658,7 @@ void ShutterSpeedSetting( char* menuText, void *userData)
       continue;
     }
 
-    lineOne = "shuttSpd:";
+    lineOne = "Shutter Speed";
     lineTwo = "";
     lineTwo.concat(g_shutterDuration);
     lcdPrintString(&lineOne, &lineTwo);
